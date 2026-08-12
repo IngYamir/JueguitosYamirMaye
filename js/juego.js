@@ -20,13 +20,6 @@ const INTERVALO_RIVAL_MS = 3_000;
 const INTERVALO_POSTPARTIDA_MS = 3_000;
 const COLORES_CONFETI = ['#efa960', '#ffd776', '#be4a45', '#86b68c', '#f7e2c4'];
 
-// Audio del juego. Se resuelve respecto a este modulo (js/juego.js), por lo que
-// los archivos deben existir exactamente en damas-web/sound/.
-const URL_MUSICA_FONDO = new URL('../sound/fondo.mp3', import.meta.url).href;
-const URL_SONIDO_MOVER = new URL('../sound/mover.mp3', import.meta.url).href;
-const VOLUMEN_MUSICA_FONDO = 0.28;
-const VOLUMEN_SONIDO_MOVER = 0.80;
-
 const estadoJuego = {
     sesionId: null,
     jugadorId: null,
@@ -62,139 +55,10 @@ const estadoJuego = {
     salaRevanchaSuscrita: false,
     rivalTermino: false,
     navegando: false,
-    sesionInvalida: false,
-    audioFondo: null,
-    audioMover: null,
-    audioPreparado: false,
-    audioDesbloqueado: false,
-    audioDesbloqueoRegistrado: false
+    sesionInvalida: false
 };
 
 const dom = {};
-
-// -----------------------------------------------------------------------------
-// AUDIO
-// -----------------------------------------------------------------------------
-function quitarEventosDesbloqueoAudio() {
-    if (!estadoJuego.audioDesbloqueoRegistrado) return;
-    document.removeEventListener('pointerdown', desbloquearAudioPorInteraccion, true);
-    document.removeEventListener('keydown', desbloquearAudioPorInteraccion, true);
-    document.removeEventListener('touchstart', desbloquearAudioPorInteraccion, true);
-    estadoJuego.audioDesbloqueoRegistrado = false;
-}
-
-function registrarDesbloqueoAudio() {
-    if (estadoJuego.audioDesbloqueado || estadoJuego.audioDesbloqueoRegistrado) return;
-    document.addEventListener('pointerdown', desbloquearAudioPorInteraccion, true);
-    document.addEventListener('keydown', desbloquearAudioPorInteraccion, true);
-    document.addEventListener('touchstart', desbloquearAudioPorInteraccion, true);
-    estadoJuego.audioDesbloqueoRegistrado = true;
-}
-
-async function iniciarMusicaFondo({ registrarSiBloquea = true } = {}) {
-    const audio = estadoJuego.audioFondo;
-    if (!audio || estadoJuego.navegando || estadoJuego.sesionInvalida) return false;
-
-    try {
-        await audio.play();
-        estadoJuego.audioDesbloqueado = true;
-        quitarEventosDesbloqueoAudio();
-        return true;
-    } catch (error) {
-        // Los navegadores suelen impedir autoplay con sonido hasta el primer
-        // clic/toque/tecla. No es un fallo del juego: se reintenta al interactuar.
-        if (registrarSiBloquea) registrarDesbloqueoAudio();
-        if (error?.name !== 'NotAllowedError' && error?.name !== 'AbortError') {
-            console.warn('[Audio] No se pudo reproducir fondo.mp3:', error);
-        }
-        return false;
-    }
-}
-
-async function desbloquearAudioPorInteraccion() {
-    if (estadoJuego.audioDesbloqueado) {
-        quitarEventosDesbloqueoAudio();
-        return;
-    }
-
-    const reproducido = await iniciarMusicaFondo({ registrarSiBloquea: false });
-    if (reproducido) quitarEventosDesbloqueoAudio();
-}
-
-function prepararAudio() {
-    if (estadoJuego.audioPreparado) return;
-    estadoJuego.audioPreparado = true;
-
-    const fondo = new Audio(URL_MUSICA_FONDO);
-    fondo.loop = true;
-    fondo.preload = 'auto';
-    fondo.volume = VOLUMEN_MUSICA_FONDO;
-
-    const mover = new Audio(URL_SONIDO_MOVER);
-    mover.preload = 'auto';
-    mover.volume = VOLUMEN_SONIDO_MOVER;
-
-    estadoJuego.audioFondo = fondo;
-    estadoJuego.audioMover = mover;
-
-    // Intento inicial. Si autoplay esta bloqueado, se reintentara con la primera
-    // interaccion valida del usuario sin requerir un boton adicional.
-    void iniciarMusicaFondo();
-}
-
-function reproducirSonidoMovimiento() {
-    const audio = estadoJuego.audioMover;
-    if (!audio || estadoJuego.navegando || estadoJuego.sesionInvalida) return;
-
-    try {
-        audio.pause();
-        audio.currentTime = 0;
-        const promesa = audio.play();
-        if (promesa?.catch) {
-            promesa.catch((error) => {
-                if (error?.name === 'NotAllowedError') registrarDesbloqueoAudio();
-                else if (error?.name !== 'AbortError') {
-                    console.warn('[Audio] No se pudo reproducir mover.mp3:', error);
-                }
-            });
-        }
-    } catch (error) {
-        console.warn('[Audio] No se pudo iniciar mover.mp3:', error);
-    }
-}
-
-function detenerAudio() {
-    quitarEventosDesbloqueoAudio();
-
-    for (const audio of [estadoJuego.audioFondo, estadoJuego.audioMover]) {
-        if (!audio) continue;
-        try {
-            audio.pause();
-            audio.currentTime = 0;
-        } catch {
-            // Nada que limpiar si el navegador ya descarto el elemento multimedia.
-        }
-    }
-}
-
-function huboMovimientoEntreEstados(fichasAnteriores, fichasNuevas) {
-    if (!Array.isArray(fichasAnteriores) || fichasAnteriores.length === 0) return false;
-    if (!Array.isArray(fichasNuevas) || fichasNuevas.length === 0) return false;
-
-    const anteriores = new Map(
-        fichasAnteriores.map((ficha) => [
-            String(ficha.ficha_id),
-            `${Number(ficha.fila_tablero)}:${Number(ficha.columna_tablero)}`
-        ])
-    );
-
-    return fichasNuevas.some((ficha) => {
-        const posicionAnterior = anteriores.get(String(ficha.ficha_id));
-        if (!posicionAnterior) return false;
-        const posicionNueva = `${Number(ficha.fila_tablero)}:${Number(ficha.columna_tablero)}`;
-        return posicionAnterior !== posicionNueva;
-    });
-}
 
 function obtenerElementos() {
     dom.app = document.querySelector('#app-juego');
@@ -730,7 +594,6 @@ function reconciliarSeleccion(resumenAnterior) {
 async function cargarEstadoDesdeBase() {
     const partidaConsultada = estadoJuego.partidaId;
     const resumenAnterior = estadoJuego.resumen;
-    const fichasAnteriores = estadoJuego.fichas;
 
     const [consultaResumen, consultaTablero] = await Promise.all([
         damasDB
@@ -755,20 +618,12 @@ async function cargarEstadoDesdeBase() {
         idsIguales(estadoJuego.jugadorId, resumen.jugador_2_id);
     if (!pertenece) throw new Error('Tu jugador no pertenece a esta partida.');
 
-    const fichasNuevas = Array.isArray(consultaTablero.data) ? consultaTablero.data : [];
-    const seMovioAlgunaFicha = huboMovimientoEntreEstados(fichasAnteriores, fichasNuevas);
-
     estadoJuego.resumen = resumen;
-    estadoJuego.fichas = fichasNuevas;
+    estadoJuego.fichas = Array.isArray(consultaTablero.data) ? consultaTablero.data : [];
     estadoJuego.partidaFinalizada = resumen.estado === 'finalizada';
     reconciliarSeleccion(resumenAnterior);
     renderizarJuego();
     actualizarPollingRival();
-
-    // Se reproduce una sola vez cuando el estado confirmado por Supabase muestra
-    // que una ficha realmente cambio de casilla. Una recarga repetida del mismo
-    // estado (Realtime + polling) no vuelve a disparar el efecto.
-    if (seMovioAlgunaFicha) reproducirSonidoMovimiento();
 
     if (estadoJuego.ultimaFichaMovidaId) {
         const idAnimado = estadoJuego.ultimaFichaMovidaId;
@@ -891,12 +746,6 @@ function actualizarPollingRival() {
 
 function manejarVisibilidadJuego() {
     if (document.visibilityState !== 'visible') return;
-
-    // Algunos navegadores suspenden multimedia en segundo plano. Al volver,
-    // reintentamos la musica si ya habia sido permitida por el usuario.
-    if (estadoJuego.audioFondo?.paused) {
-        void iniciarMusicaFondo();
-    }
 
     // Al volver a la pestana, sincroniza inmediatamente si seguimos esperando
     // el movimiento del rival, sin tener que esperar al siguiente ciclo de 3 s.
@@ -1389,7 +1238,6 @@ async function navegarANuevaPartida(nuevaPartidaId) {
     detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
-    detenerAudio();
     guardarSesion({ partidaId: String(nuevaPartidaId) });
     if (dom.estadoRevancha) dom.estadoRevancha.textContent = 'Revancha lista. Abriendo el tablero…';
     mostrar(dom.estadoRevancha, true);
@@ -1444,7 +1292,6 @@ async function finalizarSesionLocal() {
     detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
-    detenerAudio();
     await eliminarTodosLosCanales();
     limpiarSesionDamas();
     window.location.replace('./index.html');
@@ -1533,7 +1380,6 @@ async function manejarSesionInvalida() {
     detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
-    detenerAudio();
     limpiarSesionDamas();
     actualizarBloqueoTablero();
     await eliminarTodosLosCanales();
@@ -1560,7 +1406,6 @@ async function inicializar() {
     }
 
     registrarEventos();
-    prepararAudio();
     construirTablero('jugador-2');
     actualizarContadorMensaje();
 
@@ -1615,7 +1460,6 @@ window.addEventListener('pagehide', () => {
     detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
-    detenerAudio();
     void eliminarTodosLosCanales();
 });
 window.addEventListener('pageshow', (evento) => {
