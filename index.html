@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Una sala privada para jugar damas entre dos personas.">
+    <meta name="theme-color" content="#241511">
+    <title>Damas · Una partida para dos</title>
+    <link rel="stylesheet" href="./css/estilos.css">
+    <script type="module" src="./js/login.js"></script>
+</head>
+<body class="pagina-inicio">
+    <div class="ambiente ambiente--inicio" aria-hidden="true">
+        <span class="ambiente__luz ambiente__luz--una"></span>
+        <span class="ambiente__luz ambiente__luz--dos"></span>
+    </div>
+
+    <header class="cabecera-inicio contenedor">
+        <a class="marca" href="./index.html" aria-label="Damas, página de inicio">
+            <span class="marca__tablero" aria-hidden="true">
+                <i></i><i></i><i></i><i></i>
+            </span>
+            <span>Damas</span>
+        </a>
+
+        <p id="conexion-estado" class="estado-conexion estado-conexion--conectando" role="status" aria-live="polite">
+            Conectando con la sala…
+        </p>
+    </header>
+
+    <main class="inicio contenedor">
+        <section class="bienvenida" aria-labelledby="titulo-principal">
+            <p class="sobretitulo">Una mesa privada para dos</p>
+            <h1 id="titulo-principal">Tu próxima partida empieza aquí.</h1>
+            <p class="bienvenida__texto">
+                Entra, encuentra al otro jugador y disfruten una partida de damas sin distracciones.
+            </p>
+
+            <section id="sala-publica" class="sala-publica" aria-labelledby="sala-nombre">
+                <div class="avatar avatar--sala" aria-hidden="true">
+                    <img id="sala-avatar" class="avatar__imagen" src="./img/Yamir.jpeg" alt="" hidden>
+                    <span id="sala-inicial" class="avatar__inicial">?</span>
+                    <span class="avatar__presencia"></span>
+                </div>
+
+                <div class="sala-publica__contenido">
+                    <p class="sala-publica__etiqueta">Sala de espera</p>
+                    <h2 id="sala-nombre">Buscando jugadores…</h2>
+                    <p id="sala-mensaje">Estamos comprobando si alguien quiere jugar contigo.</p>
+                </div>
+            </section>
+
+            <p class="nota-privacidad">
+                <span aria-hidden="true">●</span>
+                Solo ustedes dos verán la partida.
+            </p>
+        </section>
+
+        <section class="tarjeta-acceso" aria-labelledby="titulo-acceso">
+            <div class="tarjeta-acceso__encabezado">
+                <p class="sobretitulo">Bienvenido</p>
+                <h2 id="titulo-acceso">Toma tu lugar en el tablero</h2>
+                <p>Usa tus datos de jugador para iniciar o unirte a la partida.</p>
+            </div>
+
+            <form id="login-form" class="formulario" novalidate>
+                <div class="campo-grupo">
+                    <label for="usuario">Usuario</label>
+                    <div class="campo-envoltorio">
+                        <span class="campo-icono" aria-hidden="true">♙</span>
+                        <input
+                            id="usuario"
+                            name="usuario"
+                            type="text"
+                            autocomplete="username"
+                            autocapitalize="none"
+                            spellcheck="false"
+                            maxlength="80"
+                            placeholder="Tu nombre de jugador"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <div class="campo-grupo">
+                    <label for="contrasena">Contraseña</label>
+                    <div class="campo-envoltorio">
+                        <span class="campo-icono" aria-hidden="true">◆</span>
+                        <input
+                            id="contrasena"
+                            name="contrasena"
+                            type="password"
+                            autocomplete="current-password"
+                            placeholder="Tu contraseña"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <p id="login-error" class="mensaje mensaje--error oculto" role="alert" aria-live="assertive"></p>
+
+                <button id="iniciar-partida" class="boton boton--primario boton--grande" type="submit">
+                    <span>Iniciar partida</span>
+                    <span class="boton__flecha" aria-hidden="true">→</span>
+                </button>
+            </form>
+
+            <p class="tarjeta-acceso__pie">El tablero se abrirá en cuanto ambos estén listos.</p>
+        </section>
+    </main>
+
+    <section
+        id="panel-espera"
+        class="modal-capa oculto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="espera-titulo"
+        aria-describedby="espera-texto"
+        tabindex="-1"
+    >
+        <div class="modal modal--espera">
+            <div class="espera-animacion" aria-hidden="true">
+                <span class="espera-animacion__ficha espera-animacion__ficha--roja"></span>
+                <span class="espera-animacion__pulso"></span>
+                <span class="espera-animacion__ficha espera-animacion__ficha--negra"></span>
+            </div>
+
+            <p class="sobretitulo">Tu lugar está reservado</p>
+            <h2 id="espera-titulo">Esperando al otro jugador…</h2>
+            <p id="espera-texto">Mantén esta pestaña abierta. Te llevaremos al tablero en cuanto llegue.</p>
+
+            <div class="espera-puntos" aria-hidden="true"><i></i><i></i><i></i></div>
+
+            <button id="cancelar-espera" class="boton boton--secundario" type="button">
+                Cancelar espera
+            </button>
+        </div>
+    </section>
+
+    <div id="toast-container" class="toasts" aria-live="assertive" aria-atomic="true"></div>
+    <p id="anuncio-index" class="solo-lectores" role="status" aria-live="polite" aria-atomic="true"></p>
+</body>
+</html>

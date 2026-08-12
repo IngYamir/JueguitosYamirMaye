@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="Partida privada de damas para dos jugadores.">
+    <meta name="theme-color" content="#241511">
+    <title>Partida · Damas</title>
+    <link rel="stylesheet" href="./css/estilos.css">
+    <script type="module" src="./js/juego.js"></script>
+</head>
+<body class="pagina-juego">
+    <div class="ambiente ambiente--juego" aria-hidden="true">
+        <span class="ambiente__luz ambiente__luz--una"></span>
+        <span class="ambiente__luz ambiente__luz--dos"></span>
+    </div>
+
+    <main id="app-juego" class="juego-app contenedor" aria-busy="true">
+        <header class="cabecera-juego">
+            <a class="marca marca--compacta" href="./index.html" aria-label="Damas, volver al inicio">
+                <span class="marca__tablero" aria-hidden="true">
+                    <i></i><i></i><i></i><i></i>
+                </span>
+                <span>Damas</span>
+            </a>
+
+            <p id="conexion-estado" class="estado-conexion estado-conexion--conectando" role="status" aria-live="polite">
+                Sincronizando partida…
+            </p>
+        </header>
+
+        <h1 class="solo-lectores">Partida de damas</h1>
+
+        <section class="jugadores" aria-label="Jugadores de la partida">
+            <article id="jugador-1" class="tarjeta-jugador" aria-label="Jugador uno">
+                <div class="avatar avatar--jugador">
+                    <img id="jugador-1-foto" class="avatar__imagen" src="./img/Yamir.jpeg" alt="" hidden>
+                    <span id="jugador-1-inicial" class="avatar__inicial" role="img" aria-label="Foto de perfil pendiente">?</span>
+                </div>
+                <div class="tarjeta-jugador__datos">
+                    <p class="tarjeta-jugador__etiqueta">Jugador 1</p>
+                    <h2 id="jugador-1-nombre">Preparando…</h2>
+                    <p id="jugador-1-color" class="color-jugador">
+                        <span class="color-jugador__muestra" aria-hidden="true"></span>
+                        Color pendiente
+                    </p>
+                </div>
+                <span class="turno-punto" aria-hidden="true"></span>
+            </article>
+
+            <div class="jugadores__versus" aria-hidden="true">vs</div>
+
+            <article id="jugador-2" class="tarjeta-jugador tarjeta-jugador--derecha" aria-label="Jugador dos">
+                <div class="avatar avatar--jugador">
+                    <img id="jugador-2-foto" class="avatar__imagen" src="./img/Maye.jpeg" alt="" hidden>
+                    <span id="jugador-2-inicial" class="avatar__inicial" role="img" aria-label="Foto de perfil pendiente">?</span>
+                </div>
+                <div class="tarjeta-jugador__datos">
+                    <p class="tarjeta-jugador__etiqueta">Jugador 2</p>
+                    <h2 id="jugador-2-nombre">Preparando…</h2>
+                    <p id="jugador-2-color" class="color-jugador">
+                        <span class="color-jugador__muestra" aria-hidden="true"></span>
+                        Color pendiente
+                    </p>
+                </div>
+                <span class="turno-punto" aria-hidden="true"></span>
+            </article>
+        </section>
+
+        <section class="mesa" aria-labelledby="turno-estado">
+            <header class="mesa__estado">
+                <div>
+                    <p class="mesa__etiqueta">Estado de la partida</p>
+                    <h2 id="turno-estado" role="status" aria-live="polite">Preparando el tablero…</h2>
+                </div>
+                <p id="partida-detalle">Conectando con la mesa</p>
+            </header>
+
+            <div class="tablero-marco">
+                <div
+                    id="tablero"
+                    class="tablero tablero--bloqueado"
+                    role="grid"
+                    aria-label="Tablero de damas de 8 por 8"
+                    aria-rowcount="8"
+                    aria-colcount="8"
+                    aria-disabled="true"
+                    aria-busy="true"
+                ></div>
+            </div>
+
+            <footer class="mesa__ayuda">
+                <span class="mesa__ayuda-icono" aria-hidden="true">◇</span>
+                <p id="instruccion-juego">Cuando sea tu turno, elige una ficha y luego una casilla resaltada.</p>
+            </footer>
+        </section>
+    </main>
+
+    <section
+        id="modal-postpartida"
+        class="modal-capa oculto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-titulo"
+        aria-describedby="modal-descripcion"
+        tabindex="-1"
+    >
+        <div id="confeti" class="confeti" aria-hidden="true"></div>
+
+        <div class="modal modal--postpartida">
+            <div class="trofeo" aria-hidden="true">♛</div>
+            <p class="sobretitulo">Partida finalizada</p>
+            <h2 id="modal-titulo">Resultado de la partida</h2>
+            <p id="modal-descripcion">Un buen encuentro merece un buen cierre.</p>
+
+            <div id="modal-jugadores" class="modal-jugadores" aria-label="Resultado entre los jugadores"></div>
+
+            <section id="bloque-espera-mensaje" class="postpartida-bloque oculto" aria-live="polite">
+                <div class="espera-mini" aria-hidden="true"><i></i><i></i><i></i></div>
+                <p>Esperando el mensaje del otro jugador…</p>
+                <blockquote id="mensaje-recibido" class="mensaje-recibido oculto"></blockquote>
+            </section>
+
+            <section id="bloque-mensaje-perdedor" class="postpartida-bloque oculto">
+                <label id="etiqueta-mensaje" for="mensaje-positivo">Dile algo que te guste del ganador</label>
+                <textarea
+                    id="mensaje-positivo"
+                    class="campo-texto"
+                    rows="4"
+                    maxlength="500"
+                    aria-labelledby="etiqueta-mensaje"
+                    aria-describedby="contador-mensaje"
+                    placeholder="Escribe un mensaje amable…"
+                ></textarea>
+                <div class="mensaje-meta">
+                    <span>Tu mensaje será privado.</span>
+                    <output id="contador-mensaje" for="mensaje-positivo">0 / 500</output>
+                </div>
+                <button id="enviar-mensaje" class="boton boton--primario" type="button">Enviar mensaje</button>
+                <p id="mensaje-confirmacion" class="mensaje mensaje--exito oculto" role="status" aria-live="polite"></p>
+            </section>
+
+            <div id="acciones-postpartida" class="acciones-postpartida oculto">
+                <button id="volver-jugar" class="boton boton--primario" type="button">Volver a jugar</button>
+                <button id="terminar" class="boton boton--secundario" type="button">Terminar</button>
+            </div>
+
+            <p id="estado-revancha" class="estado-revancha oculto" role="status" aria-live="polite"></p>
+        </div>
+    </section>
+
+    <div id="toast-container" class="toasts" aria-live="assertive" aria-atomic="true"></div>
+    <p id="anuncio-juego" class="solo-lectores" role="status" aria-live="polite" aria-atomic="true"></p>
+</body>
+</html>
