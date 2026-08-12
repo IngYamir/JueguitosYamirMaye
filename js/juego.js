@@ -16,8 +16,8 @@ import {
 } from './realtime.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INTERVALO_RIVAL_MS = 3_000;
-const INTERVALO_POSTPARTIDA_MS = 3_000;
+const INTERVALO_RIVAL_MS = 1_000;
+const INTERVALO_POSTPARTIDA_MS = 1_000;
 const COLORES_CONFETI = ['#efa960', '#ffd776', '#be4a45', '#86b68c', '#f7e2c4'];
 const AUDIO_FONDO_URL = new URL('../sound/fondo.mp3', import.meta.url).href;
 const AUDIO_MOVER_URL = new URL('../sound/mover.mp3', import.meta.url).href;
