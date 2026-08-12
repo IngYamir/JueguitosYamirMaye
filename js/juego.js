@@ -20,6 +20,13 @@ const INTERVALO_RIVAL_MS = 3_000;
 const INTERVALO_POSTPARTIDA_MS = 3_000;
 const COLORES_CONFETI = ['#efa960', '#ffd776', '#be4a45', '#86b68c', '#f7e2c4'];
 
+// Audio del juego. Las rutas se resuelven desde este modulo (js/juego.js),
+// por eso ../sound apunta a damas-web/sound aunque la pagina sea juego.html.
+const RUTA_MUSICA_FONDO = new URL('../sound/fondo.mp3', import.meta.url).href;
+const RUTA_SONIDO_MOVER = new URL('../sound/mover.mp3', import.meta.url).href;
+const VOLUMEN_MUSICA_FONDO = 0.22;
+const VOLUMEN_SONIDO_MOVER = 0.85;
+
 const estadoJuego = {
     sesionId: null,
     jugadorId: null,
@@ -59,6 +66,169 @@ const estadoJuego = {
 };
 
 const dom = {};
+
+// -----------------------------------------------------------------------------
+// AUDIO
+// -----------------------------------------------------------------------------
+// Los navegadores modernos suelen bloquear autoplay con sonido hasta que exista
+// una interaccion del usuario. Se intenta reproducir al entrar y, si es bloqueado,
+// se reintenta automaticamente con el primer clic/toque/tecla.
+const audioJuego = {
+    fondo: null,
+    mover: null,
+    desbloqueoRegistrado: false,
+    tableroInicializado: false,
+    errorFondoReportado: false,
+    errorMoverReportado: false
+};
+
+function crearAudio(ruta, { loop = false, volumen = 1 } = {}) {
+    const audio = new Audio(ruta);
+    audio.preload = 'auto';
+    audio.loop = loop;
+    audio.volume = volumen;
+    audio.playsInline = true;
+    return audio;
+}
+
+function quitarDesbloqueoAudio() {
+    if (!audioJuego.desbloqueoRegistrado) return;
+    document.removeEventListener('pointerdown', desbloquearAudioPorInteraccion);
+    document.removeEventListener('touchstart', desbloquearAudioPorInteraccion);
+    document.removeEventListener('keydown', desbloquearAudioPorInteraccion);
+    audioJuego.desbloqueoRegistrado = false;
+}
+
+function desbloquearAudioPorInteraccion() {
+    quitarDesbloqueoAudio();
+    void reproducirMusicaFondo();
+}
+
+function registrarDesbloqueoAudio() {
+    if (audioJuego.desbloqueoRegistrado || estadoJuego.navegando || estadoJuego.sesionInvalida) return;
+    audioJuego.desbloqueoRegistrado = true;
+    document.addEventListener('pointerdown', desbloquearAudioPorInteraccion, { passive: true });
+    document.addEventListener('touchstart', desbloquearAudioPorInteraccion, { passive: true });
+    document.addEventListener('keydown', desbloquearAudioPorInteraccion);
+}
+
+function inicializarAudioJuego() {
+    if (!audioJuego.fondo) {
+        audioJuego.fondo = crearAudio(RUTA_MUSICA_FONDO, {
+            loop: true,
+            volumen: VOLUMEN_MUSICA_FONDO
+        });
+    }
+
+    if (!audioJuego.mover) {
+        audioJuego.mover = crearAudio(RUTA_SONIDO_MOVER, {
+            loop: false,
+            volumen: VOLUMEN_SONIDO_MOVER
+        });
+    }
+
+    // Prepara ambos recursos. load() no obliga a reproducir y ayuda a reducir
+    // el retraso del primer efecto en algunos navegadores.
+    try {
+        audioJuego.fondo.load();
+        audioJuego.mover.load();
+    } catch (error) {
+        console.warn('[Audio] No fue posible precargar los archivos.', error);
+    }
+}
+
+async function reproducirMusicaFondo() {
+    if (estadoJuego.navegando || estadoJuego.sesionInvalida) return false;
+    if (!audioJuego.fondo) inicializarAudioJuego();
+
+    const audio = audioJuego.fondo;
+    if (!audio || !audio.paused) return true;
+
+    try {
+        await audio.play();
+        quitarDesbloqueoAudio();
+        return true;
+    } catch (error) {
+        if (error?.name === 'NotAllowedError') {
+            registrarDesbloqueoAudio();
+            return false;
+        }
+
+        if (!audioJuego.errorFondoReportado) {
+            audioJuego.errorFondoReportado = true;
+            console.warn(
+                '[Audio] No se pudo reproducir sound/fondo.mp4. Comprueba que el archivo exista y tenga una pista de audio compatible.',
+                error
+            );
+        }
+        return false;
+    }
+}
+
+async function reproducirSonidoMovimiento() {
+    if (estadoJuego.navegando || estadoJuego.sesionInvalida) return false;
+    if (!audioJuego.mover) inicializarAudioJuego();
+
+    const audio = audioJuego.mover;
+    if (!audio) return false;
+
+    try {
+        audio.pause();
+        audio.currentTime = 0;
+        await audio.play();
+        return true;
+    } catch (error) {
+        if (error?.name === 'NotAllowedError') {
+            // No reproducimos tarde un movimiento que ya ocurrio; solo dejamos
+            // preparado el audio para la siguiente interaccion/movimiento.
+            registrarDesbloqueoAudio();
+            return false;
+        }
+
+        if (!audioJuego.errorMoverReportado) {
+            audioJuego.errorMoverReportado = true;
+            console.warn(
+                '[Audio] No se pudo reproducir sound/mover.mp4. Comprueba que el archivo exista y tenga una pista de audio compatible.',
+                error
+            );
+        }
+        return false;
+    }
+}
+
+function detenerAudioJuego() {
+    quitarDesbloqueoAudio();
+
+    if (audioJuego.fondo) {
+        audioJuego.fondo.pause();
+        audioJuego.fondo.currentTime = 0;
+    }
+
+    if (audioJuego.mover) {
+        audioJuego.mover.pause();
+        audioJuego.mover.currentTime = 0;
+    }
+}
+
+function huboMovimientoEntreTableros(fichasAnteriores, fichasNuevas) {
+    if (!audioJuego.tableroInicializado) return false;
+    if (!Array.isArray(fichasAnteriores) || !Array.isArray(fichasNuevas)) return false;
+
+    const posicionesAnteriores = new Map();
+    for (const ficha of fichasAnteriores) {
+        posicionesAnteriores.set(String(ficha.ficha_id), {
+            fila: Number(ficha.fila_tablero),
+            columna: Number(ficha.columna_tablero)
+        });
+    }
+
+    return fichasNuevas.some((ficha) => {
+        const anterior = posicionesAnteriores.get(String(ficha.ficha_id));
+        if (!anterior) return false;
+        return anterior.fila !== Number(ficha.fila_tablero) ||
+            anterior.columna !== Number(ficha.columna_tablero);
+    });
+}
 
 function obtenerElementos() {
     dom.app = document.querySelector('#app-juego');
@@ -594,6 +764,7 @@ function reconciliarSeleccion(resumenAnterior) {
 async function cargarEstadoDesdeBase() {
     const partidaConsultada = estadoJuego.partidaId;
     const resumenAnterior = estadoJuego.resumen;
+    const fichasAnteriores = estadoJuego.fichas;
 
     const [consultaResumen, consultaTablero] = await Promise.all([
         damasDB
@@ -618,12 +789,22 @@ async function cargarEstadoDesdeBase() {
         idsIguales(estadoJuego.jugadorId, resumen.jugador_2_id);
     if (!pertenece) throw new Error('Tu jugador no pertenece a esta partida.');
 
+    const fichasNuevas = Array.isArray(consultaTablero.data) ? consultaTablero.data : [];
+    const huboMovimientoConfirmado = huboMovimientoEntreTableros(fichasAnteriores, fichasNuevas);
+
     estadoJuego.resumen = resumen;
-    estadoJuego.fichas = Array.isArray(consultaTablero.data) ? consultaTablero.data : [];
+    estadoJuego.fichas = fichasNuevas;
     estadoJuego.partidaFinalizada = resumen.estado === 'finalizada';
     reconciliarSeleccion(resumenAnterior);
     renderizarJuego();
     actualizarPollingRival();
+
+    // El sonido se dispara solo al detectar un cambio REAL de posicion entre dos
+    // estados confirmados por la base. Asi no se duplica por RPC + Realtime + polling.
+    if (huboMovimientoConfirmado) {
+        void reproducirSonidoMovimiento();
+    }
+    audioJuego.tableroInicializado = true;
 
     if (estadoJuego.ultimaFichaMovidaId) {
         const idAnimado = estadoJuego.ultimaFichaMovidaId;
@@ -746,6 +927,10 @@ function actualizarPollingRival() {
 
 function manejarVisibilidadJuego() {
     if (document.visibilityState !== 'visible') return;
+
+    // Algunos navegadores/sistemas moviles pausan multimedia en segundo plano.
+    // Al volver a la pestana intentamos reanudar la musica.
+    void reproducirMusicaFondo();
 
     // Al volver a la pestana, sincroniza inmediatamente si seguimos esperando
     // el movimiento del rival, sin tener que esperar al siguiente ciclo de 3 s.
@@ -1238,6 +1423,7 @@ async function navegarANuevaPartida(nuevaPartidaId) {
     detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
+    detenerAudioJuego();
     guardarSesion({ partidaId: String(nuevaPartidaId) });
     if (dom.estadoRevancha) dom.estadoRevancha.textContent = 'Revancha lista. Abriendo el tablero…';
     mostrar(dom.estadoRevancha, true);
@@ -1292,6 +1478,7 @@ async function finalizarSesionLocal() {
     detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
+    detenerAudioJuego();
     await eliminarTodosLosCanales();
     limpiarSesionDamas();
     window.location.replace('./index.html');
@@ -1380,6 +1567,7 @@ async function manejarSesionInvalida() {
     detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
+    detenerAudioJuego();
     limpiarSesionDamas();
     actualizarBloqueoTablero();
     await eliminarTodosLosCanales();
@@ -1437,6 +1625,10 @@ async function inicializar() {
         estadoJuego.partidaId = String(partidaId);
         guardarSesion({ partidaId: estadoJuego.partidaId });
         normalizarUrlPartida(estadoJuego.partidaId);
+
+        inicializarAudioJuego();
+        void reproducirMusicaFondo();
+
         suscribirsePartida(
             estadoJuego.partidaId,
             (evento) => void manejarEventoPartida(evento),
@@ -1460,6 +1652,7 @@ window.addEventListener('pagehide', () => {
     detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
+    detenerAudioJuego();
     void eliminarTodosLosCanales();
 });
 window.addEventListener('pageshow', (evento) => {
