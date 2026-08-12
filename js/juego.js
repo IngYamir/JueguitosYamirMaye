@@ -986,6 +986,14 @@ async function realizarMovimiento(destino) {
         });
     } finally {
         estadoJuego.movimientoEnProceso = false;
+
+        // IMPORTANTE: cargarEstadoDesdeBase() se ejecuta mientras
+        // movimientoEnProceso sigue en true. Si nuestra jugada entrego el
+        // turno al rival, el polling no puede iniciarse en ese momento.
+        // Al liberar el movimiento volvemos a evaluarlo para que comiencen
+        // inmediatamente las consultas automaticas cada 3 segundos.
+        actualizarPollingRival();
+
         renderizarJuego();
     }
 }
