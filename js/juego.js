@@ -16,7 +16,8 @@ import {
 } from './realtime.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const INTERVALO_POSTPARTIDA_MS = 4_000;
+const INTERVALO_RIVAL_MS = 3_000;
+const INTERVALO_POSTPARTIDA_MS = 3_000;
 const COLORES_CONFETI = ['#efa960', '#ffd776', '#be4a45', '#86b68c', '#f7e2c4'];
 
 const estadoJuego = {
@@ -44,6 +45,8 @@ const estadoJuego = {
     accionesPostpartida: [],
     consultaPostpartidaEnCurso: false,
     postpartidaPollingId: null,
+    rivalPollingId: null,
+    rivalPollingEnCurso: false,
     modalAbierto: false,
     confetiMostrado: false,
     mensajeEnviadoLocalmente: false,
@@ -620,6 +623,7 @@ async function cargarEstadoDesdeBase() {
     estadoJuego.partidaFinalizada = resumen.estado === 'finalizada';
     reconciliarSeleccion(resumenAnterior);
     renderizarJuego();
+    actualizarPollingRival();
 
     if (estadoJuego.ultimaFichaMovidaId) {
         const idAnimado = estadoJuego.ultimaFichaMovidaId;
@@ -670,6 +674,84 @@ function solicitarRecarga({
     });
 
     return estadoJuego.recargaPromesa;
+}
+
+// -----------------------------------------------------------------------------
+// POLLING DE RESPALDO DURANTE EL TURNO DEL RIVAL
+// -----------------------------------------------------------------------------
+// Realtime sigue siendo el mecanismo principal. Este polling garantiza que, si
+// un evento Realtime se retrasa o se pierde, el tablero, el turno, capturas,
+// coronaciones y la victoria se reflejen sin recargar manualmente la pagina.
+function debeSincronizarPorPollingRival() {
+    return Boolean(
+        estadoJuego.partidaId &&
+        estadoJuego.resumen?.estado === 'en_curso' &&
+        !esMiTurno() &&
+        !estadoJuego.partidaFinalizada &&
+        !estadoJuego.movimientoEnProceso &&
+        !estadoJuego.navegando &&
+        !estadoJuego.sesionInvalida
+    );
+}
+
+function detenerPollingRival() {
+    if (estadoJuego.rivalPollingId !== null) {
+        window.clearInterval(estadoJuego.rivalPollingId);
+        estadoJuego.rivalPollingId = null;
+    }
+}
+
+async function ejecutarPollingRival() {
+    if (!debeSincronizarPorPollingRival()) {
+        detenerPollingRival();
+        return;
+    }
+
+    // Si Realtime u otra accion ya esta recargando el estado, esa misma recarga
+    // es suficiente. Evitamos iniciar otra llamada simultanea.
+    if (estadoJuego.rivalPollingEnCurso || estadoJuego.recargaPromesa) return;
+
+    estadoJuego.rivalPollingEnCurso = true;
+    try {
+        await solicitarRecarga();
+    } catch (error) {
+        if (esErrorSesion(error)) {
+            await manejarSesionInvalida();
+        } else {
+            // El polling es un respaldo: un fallo puntual no debe inundar la UI
+            // con toasts cada tres segundos. Realtime y el siguiente ciclo siguen.
+            console.warn('[Polling rival] No se pudo actualizar la partida:', mensajeError(error));
+        }
+    } finally {
+        estadoJuego.rivalPollingEnCurso = false;
+        actualizarPollingRival();
+    }
+}
+
+function iniciarPollingRival() {
+    if (estadoJuego.rivalPollingId !== null || !debeSincronizarPorPollingRival()) return;
+
+    estadoJuego.rivalPollingId = window.setInterval(() => {
+        void ejecutarPollingRival();
+    }, INTERVALO_RIVAL_MS);
+}
+
+function actualizarPollingRival() {
+    if (debeSincronizarPorPollingRival()) {
+        iniciarPollingRival();
+    } else {
+        detenerPollingRival();
+    }
+}
+
+function manejarVisibilidadJuego() {
+    if (document.visibilityState !== 'visible') return;
+
+    // Al volver a la pestana, sincroniza inmediatamente si seguimos esperando
+    // el movimiento del rival, sin tener que esperar al siguiente ciclo de 3 s.
+    if (debeSincronizarPorPollingRival()) {
+        void ejecutarPollingRival();
+    }
 }
 
 function seleccionarFicha(ficha) {
@@ -1153,6 +1235,7 @@ async function enviarMensajePositivo() {
 async function navegarANuevaPartida(nuevaPartidaId) {
     if (!esUuid(nuevaPartidaId) || estadoJuego.navegando) return;
     estadoJuego.navegando = true;
+    detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
     guardarSesion({ partidaId: String(nuevaPartidaId) });
@@ -1206,6 +1289,7 @@ async function ejecutarAccionPostpartida(accion) {
 
 async function finalizarSesionLocal() {
     estadoJuego.navegando = true;
+    detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
     await eliminarTodosLosCanales();
@@ -1293,6 +1377,7 @@ async function manejarSesionInvalida() {
     estadoJuego.sesionInvalida = true;
     estadoJuego.partidaFinalizada = true;
     estadoJuego.movimientoEnProceso = false;
+    detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
     limpiarSesionDamas();
@@ -1310,6 +1395,7 @@ function registrarEventos() {
     dom.enviarMensaje.addEventListener('click', () => void enviarMensajePositivo());
     dom.volverJugar.addEventListener('click', () => void ejecutarAccionPostpartida('volver_a_jugar'));
     dom.terminar.addEventListener('click', () => void ejecutarAccionPostpartida('terminar'));
+    document.addEventListener('visibilitychange', manejarVisibilidadJuego);
 }
 
 async function inicializar() {
@@ -1371,6 +1457,7 @@ async function inicializar() {
 }
 
 window.addEventListener('pagehide', () => {
+    detenerPollingRival();
     detenerPollingPostpartida();
     detenerHeartbeat();
     void eliminarTodosLosCanales();
